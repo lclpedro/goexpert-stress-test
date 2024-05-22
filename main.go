@@ -18,7 +18,9 @@ type RequestData struct {
 }
 
 func makeRequest(ctx context.Context, data *RequestData) error {
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		return nil
+	}}
 	req, err := http.NewRequestWithContext(ctx, "GET", data.Endpoint, nil)
 	if err != nil {
 		return fmt.Errorf("erro ao criar requisição: %w", err)
@@ -46,6 +48,7 @@ func runWorkers(data *RequestData) error {
 
 	workers := threading.NewWorkerPool(data.Concurrency)
 	for i := 0; i < data.Workers; i++ {
+		println("Criando worker", i)
 		dataset := []interface{}{i}
 		workers.RunJob(dataset, func(_dataset []interface{}) error {
 			fmt.Println("Executando worker", i)
