@@ -48,7 +48,6 @@ func runWorkers(data *RequestData) error {
 
 	workers := threading.NewWorkerPool(data.Concurrency)
 	for i := 0; i < data.Workers; i++ {
-		println("Criando worker", i)
 		dataset := []interface{}{i}
 		workers.RunJob(dataset, func(_dataset []interface{}) error {
 			fmt.Println("Executando worker", i)
