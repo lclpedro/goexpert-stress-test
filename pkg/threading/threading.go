@@ -64,7 +64,6 @@ func (w *WorkerPool) RunJob(dataset []interface{}, jobFn func(_dataset []interfa
 			return
 		default:
 			if err := jobFn(dataset); err != nil {
-				w.cancel()
 				atomic.AddInt32(&w.numOfFailures, 1)
 				w.jobError = err
 			}

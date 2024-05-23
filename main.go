@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/lclpedro/ddos/pkg/threading"
 	"net/http"
@@ -18,21 +19,28 @@ type RequestData struct {
 }
 
 func makeRequest(ctx context.Context, data *RequestData) error {
-	client := &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
-		return nil
-	}}
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return nil
+		},
+	}
 	req, err := http.NewRequestWithContext(ctx, "GET", data.Endpoint, nil)
 	if err != nil {
-		return fmt.Errorf("erro ao criar requisição: %w", err)
+		return fmt.Errorf("erro ao criar requisição: %s", err.Error())
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("erro ao fazer a requisição: %w", err)
+		if errors.Is(err, context.DeadlineExceeded) {
+			fmt.Printf("Status code: %d\n", http.StatusRequestTimeout)
+			return fmt.Errorf("tempo limite excedido")
+		}
+		return fmt.Errorf("erro ao fazer a requisição: %s", err.Error())
 	}
-	defer resp.Body.Close()
 
 	fmt.Printf("Status code: %d\n", resp.StatusCode)
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("status code Error: %d", resp.StatusCode)
@@ -43,16 +51,13 @@ func makeRequest(ctx context.Context, data *RequestData) error {
 
 func runWorkers(data *RequestData) error {
 	startHour := time.Now()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	workers := threading.NewWorkerPool(data.Concurrency)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second) // Tempo limite de 10 segundos
+	defer cancel()
 	for i := 0; i < data.Workers; i++ {
-		dataset := []interface{}{i}
-		workers.RunJob(dataset, func(_dataset []interface{}) error {
-			fmt.Println("Executando worker", i)
+		workers.RunJob([]any{}, func(_dataset []interface{}) error {
 			if err := makeRequest(ctx, data); err != nil {
-				return fmt.Errorf("Erro no worker: %s\n", err)
+				return err
 			}
 			return nil
 		})
